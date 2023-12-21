@@ -4,7 +4,7 @@ annotations_creators:
 - crowdsourced
 language_creators:
 - crowdsourced
-language_bcp47:
+language:
 - ab
 - af
 - am
@@ -37,8 +37,8 @@ language_bcp47:
 - fa
 - fi
 - fr
-- fy-NL
-- ga-IE
+- fy
+- ga
 - gl
 - gn
 - ha
@@ -46,7 +46,7 @@ language_bcp47:
 - hi
 - hsb
 - hu
-- hy-AM
+- hy
 - ia
 - id
 - ig
@@ -74,21 +74,20 @@ language_bcp47:
 - mrj
 - mt
 - myv
-- nan-tw
-- ne-NP
+- nan
+- ne
 - nhi
 - nl
-- nn-NO
+- nn
 - oc
 - or
 - os
-- pa-IN
+- pa
 - pl
 - ps
 - pt
 - quy
-- rm-sursilv
-- rm-vallader
+- rm
 - ro
 - ru
 - rw
@@ -100,7 +99,7 @@ language_bcp47:
 - sl
 - sq
 - sr
-- sv-SE
+- sv
 - sw
 - ta
 - te
@@ -122,9 +121,21 @@ language_bcp47:
 - yo
 - yue
 - zgh
+- zh
+language_bcp47:
 - zh-CN
 - zh-HK
 - zh-TW
+- sv-SE
+- rm-sursilv
+- rm-vallader
+- pa-IN
+- nn-NO
+- ne-NP
+- nan-tw
+- hy-AM
+- ga-IE
+- fy-NL
 license:
 - cc0-1.0
 multilinguality:
