@@ -176,11 +176,6 @@ that can help improve the accuracy of speech recognition engines.
 The dataset currently consists of 19673 validated hours in 120 languages, but more voices and languages are always added. 
 Take a look at the [Languages](https://commonvoice.mozilla.org/en/languages) page to request a language or start contributing.
 
-### Supported Tasks and Leaderboards
-
-The results for models trained on the Common Voice datasets are available via the 
-[🤗 Speech Bench](https://huggingface.co/spaces/huggingface/hf-speech-bench)
-
 ### Languages
 
 ```
@@ -195,16 +190,16 @@ For example, to download the Hindi config, simply specify the corresponding lang
 ```python
 from datasets import load_dataset
 
-cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
+cv_16 = load_dataset("mozilla-foundation/common_voice_16_0", "hi", split="train")
 ```
 
 Using the datasets library, you can also stream the dataset on-the-fly by adding a `streaming=True` argument to the `load_dataset` function call. Loading a dataset in streaming mode loads individual samples of the dataset at a time, rather than downloading the entire dataset to disk.
 ```python
 from datasets import load_dataset
 
-cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train", streaming=True)
+cv_16 = load_dataset("mozilla-foundation/common_voice_16_0", "hi", split="train", streaming=True)
 
-print(next(iter(cv_14)))
+print(next(iter(cv_16)))
 ```
 
 *Bonus*: create a [PyTorch dataloader](https://huggingface.co/docs/datasets/use_with_pytorch) directly with your own datasets (local/streamed).
@@ -215,9 +210,10 @@ print(next(iter(cv_14)))
 from datasets import load_dataset
 from torch.utils.data.sampler import BatchSampler, RandomSampler
 
-cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
-batch_sampler = BatchSampler(RandomSampler(cv_14), batch_size=32, drop_last=False)
-dataloader = DataLoader(cv_14, batch_sampler=batch_sampler)
+cv_16 = load_dataset("mozilla-foundation/common_voice_16_0", "hi", split="train")
+
+batch_sampler = BatchSampler(RandomSampler(cv_16), batch_size=32, drop_last=False)
+dataloader = DataLoader(cv_16, batch_sampler=batch_sampler)
 ```
 
 ### Streaming
@@ -226,15 +222,15 @@ dataloader = DataLoader(cv_14, batch_sampler=batch_sampler)
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
-dataloader = DataLoader(cv_14, batch_size=32)
+cv_16 = load_dataset("mozilla-foundation/common_voice_16_0", "hi", split="train")
+dataloader = DataLoader(cv_16, batch_size=32)
 ```
 
 To find out more about loading and preparing audio datasets, head over to [hf.co/blog/audio-datasets](https://huggingface.co/blog/audio-datasets).
 
 ### Example scripts
 
-Train your own CTC or Seq2Seq Automatic Speech Recognition models on Common Voice 13 with `transformers` - [here](https://github.com/huggingface/transformers/tree/main/examples/pytorch/speech-recognition).
+Train your own CTC or Seq2Seq Automatic Speech Recognition models on Common Voice 16 with `transformers` - [here](https://github.com/huggingface/transformers/tree/main/examples/pytorch/speech-recognition).
 
 ## Dataset Structure
 
