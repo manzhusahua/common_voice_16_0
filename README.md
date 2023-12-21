@@ -165,7 +165,7 @@ extra_gated_prompt: "By clicking on “Access repository” below, you also agre
 - **Repository:** https://github.com/common-voice/common-voice
 - **Paper:** https://arxiv.org/abs/1912.06670
 - **Leaderboard:** https://paperswithcode.com/dataset/common-voice
-- **Point of Contact:** [Anton Lozhkov](mailto:anton@huggingface.co)
+- **Point of Contact:** [Vaibhav Srivastav](mailto:vaibhav@huggingface.co)
 
 ### Dataset Summary
 
@@ -186,6 +186,55 @@ The results for models trained on the Common Voice datasets are available via th
 ```
 Abkhaz, Afrikaans, Albanian, Amharic, Arabic, Armenian, Assamese, Asturian, Azerbaijani, Basaa, Bashkir, Basque, Belarusian, Bengali, Breton, Bulgarian, Cantonese, Catalan, Central Kurdish, Chinese (China), Chinese (Hong Kong), Chinese (Taiwan), Chuvash, Czech, Danish, Dhivehi, Dioula, Dutch, English, Erzya, Esperanto, Estonian, Finnish, French, Frisian, Galician, Georgian, German, Greek, Guarani, Hakha Chin, Hausa, Hebrew, Hill Mari, Hindi, Hungarian, Icelandic, Igbo, Indonesian, Interlingua, Irish, Italian, Japanese, Kabyle, Kazakh, Kinyarwanda, Korean, Kurmanji Kurdish, Kyrgyz, Lao, Latgalian, Latvian, Ligurian, Lithuanian, Luganda, Macedonian, Malayalam, Maltese, Marathi, Meadow Mari, Moksha, Mongolian, Nepali, Norwegian Nynorsk, Occitan, Odia, Ossetian, Pashto, Persian, Polish, Portuguese, Punjabi, Quechua Chanka, Romanian, Romansh Sursilvan, Romansh Vallader, Russian, Sakha, Santali (Ol Chiki), Saraiki, Sardinian, Serbian, Slovak, Slovenian, Sorbian, Upper, Spanish, Swahili, Swedish, Taiwanese (Minnan), Tamazight, Tamil, Tatar, Telugu, Thai, Tigre, Tigrinya, Toki Pona, Turkish, Turkmen, Twi, Ukrainian, Urdu, Uyghur, Uzbek, Vietnamese, Votic, Welsh, Western Sierra Puebla Nahuatl, Yiddish, Yoruba
 ```
+
+## How to use
+
+The `datasets` library allows you to load and pre-process your dataset in pure Python, at scale. The dataset can be downloaded and prepared in one call to your local drive by using the `load_dataset` function. 
+
+For example, to download the Hindi config, simply specify the corresponding language config name (i.e., "hi" for Hindi):
+```python
+from datasets import load_dataset
+
+cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
+```
+
+Using the datasets library, you can also stream the dataset on-the-fly by adding a `streaming=True` argument to the `load_dataset` function call. Loading a dataset in streaming mode loads individual samples of the dataset at a time, rather than downloading the entire dataset to disk.
+```python
+from datasets import load_dataset
+
+cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train", streaming=True)
+
+print(next(iter(cv_14)))
+```
+
+*Bonus*: create a [PyTorch dataloader](https://huggingface.co/docs/datasets/use_with_pytorch) directly with your own datasets (local/streamed).
+
+### Local
+
+```python
+from datasets import load_dataset
+from torch.utils.data.sampler import BatchSampler, RandomSampler
+
+cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
+batch_sampler = BatchSampler(RandomSampler(cv_14), batch_size=32, drop_last=False)
+dataloader = DataLoader(cv_14, batch_sampler=batch_sampler)
+```
+
+### Streaming
+
+```python
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+
+cv_14 = load_dataset("mozilla-foundation/common_voice_14_0", "hi", split="train")
+dataloader = DataLoader(cv_14, batch_size=32)
+```
+
+To find out more about loading and preparing audio datasets, head over to [hf.co/blog/audio-datasets](https://huggingface.co/blog/audio-datasets).
+
+### Example scripts
+
+Train your own CTC or Seq2Seq Automatic Speech Recognition models on Common Voice 13 with `transformers` - [here](https://github.com/huggingface/transformers/tree/main/examples/pytorch/speech-recognition).
 
 ## Dataset Structure
 
