@@ -17,15 +17,15 @@
 
 import csv
 import os
-import urllib
+import json
 
 import datasets
-import requests
 from datasets.utils.py_utils import size_str
-from huggingface_hub import HfApi, HfFolder
+from tqdm import tqdm
 
 from .languages import LANGUAGES
 from .release_stats import STATS
+
 
 _CITATION = """\
 @inproceedings{commonvoice:2020,
@@ -41,7 +41,14 @@ _HOMEPAGE = "https://commonvoice.mozilla.org/en/datasets"
 
 _LICENSE = "https://creativecommons.org/publicdomain/zero/1.0/"
 
-_API_URL = "https://commonvoice.mozilla.org/api/v1"
+# TODO: change "streaming" to "main" after merge!
+_BASE_URL = "https://huggingface.co/datasets/reach-vb/common_voice_16_0/resolve/main/"
+
+_AUDIO_URL = _BASE_URL + "audio/{lang}/{split}/{lang}_{split}_{shard_idx}.tar"
+
+_TRANSCRIPT_URL = _BASE_URL + "transcript/{lang}/{split}.tsv"
+
+_N_SHARDS_URL = _BASE_URL + "n_shards.json"
 
 
 class CommonVoiceConfig(datasets.BuilderConfig):
@@ -71,7 +78,6 @@ class CommonVoiceConfig(datasets.BuilderConfig):
 
 
 class CommonVoice(datasets.GeneratorBasedBuilder):
-    DEFAULT_CONFIG_NAME = "en"
     DEFAULT_WRITER_BATCH_SIZE = 1000
 
     BUILDER_CONFIGS = [
@@ -110,6 +116,7 @@ class CommonVoice(datasets.GeneratorBasedBuilder):
                 "accent": datasets.Value("string"),
                 "locale": datasets.Value("string"),
                 "segment": datasets.Value("string"),
+                "variant": datasets.Value("string"),
             }
         )
 
@@ -121,140 +128,71 @@ class CommonVoice(datasets.GeneratorBasedBuilder):
             license=_LICENSE,
             citation=_CITATION,
             version=self.config.version,
-            # task_templates=[
-            #     AutomaticSpeechRecognition(audio_file_path_column="path", transcription_column="sentence")
-            # ],
         )
 
-    def _get_bundle_url(self, locale, url_template):
-        # path = encodeURIComponent(path)
-        path = url_template.replace("{locale}", locale)
-        path = urllib.parse.quote(path.encode("utf-8"), safe="~()*!.'")
-        # use_cdn = self.config.size_bytes < 20 * 1024 * 1024 * 1024
-        # response = requests.get(f"{_API_URL}/bucket/dataset/{path}/{use_cdn}", timeout=10.0).json()
-        response = requests.get(f"{_API_URL}/bucket/dataset/{path}", timeout=10.0).json()
-        return response["url"]
-
-    def _log_download(self, locale, bundle_version, auth_token):
-        if isinstance(auth_token, bool):
-            auth_token = HfFolder().get_token()
-        whoami = HfApi().whoami(auth_token)
-        email = whoami["email"] if "email" in whoami else ""
-        payload = {"email": email, "locale": locale, "dataset": bundle_version}
-        requests.post(f"{_API_URL}/{locale}/downloaders", json=payload).json()
-
     def _split_generators(self, dl_manager):
-        """Returns SplitGenerators."""
-        hf_auth_token = dl_manager.download_config.use_auth_token
-        if hf_auth_token is None:
-            raise ConnectionError(
-                "Please set use_auth_token=True or use_auth_token='<TOKEN>' to download this dataset"
+        lang = self.config.name
+        n_shards_path = dl_manager.download_and_extract(_N_SHARDS_URL)
+        with open(n_shards_path, encoding="utf-8") as f:
+            n_shards = json.load(f)
+
+        audio_urls = {}
+        splits = ("train", "dev", "test", "other", "invalidated")
+        for split in splits:
+            audio_urls[split] = [
+                _AUDIO_URL.format(lang=lang, split=split, shard_idx=i) for i in range(n_shards[lang][split])
+            ]
+        archive_paths = dl_manager.download(audio_urls)
+        local_extracted_archive_paths = dl_manager.extract(archive_paths) if not dl_manager.is_streaming else {}
+
+        meta_urls = {split: _TRANSCRIPT_URL.format(lang=lang, split=split) for split in splits}
+        meta_paths = dl_manager.download_and_extract(meta_urls)
+
+        split_generators = []
+        split_names = {
+            "train": datasets.Split.TRAIN,
+            "dev": datasets.Split.VALIDATION,
+            "test": datasets.Split.TEST,
+        }
+        for split in splits:
+            split_generators.append(
+                datasets.SplitGenerator(
+                    name=split_names.get(split, split),
+                    gen_kwargs={
+                        "local_extracted_archive_paths": local_extracted_archive_paths.get(split),
+                        "archives": [dl_manager.iter_archive(path) for path in archive_paths.get(split)],
+                        "meta_path": meta_paths[split],
+                    },
+                ),
             )
 
-        bundle_url_template = STATS["bundleURLTemplate"]
-        bundle_version = bundle_url_template.split("/")[0]
-        dl_manager.download_config.ignore_url_params = True
+        return split_generators
 
-        self._log_download(self.config.name, bundle_version, hf_auth_token)
-        archive_path = dl_manager.download(self._get_bundle_url(self.config.name, bundle_url_template))
-        local_extracted_archive = dl_manager.extract(archive_path) if not dl_manager.is_streaming else None
-
-        if self.config.version < datasets.Version("5.0.0"):
-            path_to_data = ""
-        else:
-            path_to_data = "/".join([bundle_version, self.config.name])
-        path_to_clips = "/".join([path_to_data, "clips"]) if path_to_data else "clips"
-
-        return [
-            datasets.SplitGenerator(
-                name=datasets.Split.TRAIN,
-                gen_kwargs={
-                    "local_extracted_archive": local_extracted_archive,
-                    "archive_iterator": dl_manager.iter_archive(archive_path),
-                    "metadata_filepath": "/".join([path_to_data, "train.tsv"]) if path_to_data else "train.tsv",
-                    "path_to_clips": path_to_clips,
-                },
-            ),
-            datasets.SplitGenerator(
-                name=datasets.Split.TEST,
-                gen_kwargs={
-                    "local_extracted_archive": local_extracted_archive,
-                    "archive_iterator": dl_manager.iter_archive(archive_path),
-                    "metadata_filepath": "/".join([path_to_data, "test.tsv"]) if path_to_data else "test.tsv",
-                    "path_to_clips": path_to_clips,
-                },
-            ),
-            datasets.SplitGenerator(
-                name=datasets.Split.VALIDATION,
-                gen_kwargs={
-                    "local_extracted_archive": local_extracted_archive,
-                    "archive_iterator": dl_manager.iter_archive(archive_path),
-                    "metadata_filepath": "/".join([path_to_data, "dev.tsv"]) if path_to_data else "dev.tsv",
-                    "path_to_clips": path_to_clips,
-                },
-            ),
-            datasets.SplitGenerator(
-                name="other",
-                gen_kwargs={
-                    "local_extracted_archive": local_extracted_archive,
-                    "archive_iterator": dl_manager.iter_archive(archive_path),
-                    "metadata_filepath": "/".join([path_to_data, "other.tsv"]) if path_to_data else "other.tsv",
-                    "path_to_clips": path_to_clips,
-                },
-            ),
-            datasets.SplitGenerator(
-                name="invalidated",
-                gen_kwargs={
-                    "local_extracted_archive": local_extracted_archive,
-                    "archive_iterator": dl_manager.iter_archive(archive_path),
-                    "metadata_filepath": "/".join([path_to_data, "invalidated.tsv"])
-                    if path_to_data
-                    else "invalidated.tsv",
-                    "path_to_clips": path_to_clips,
-                },
-            ),
-        ]
-
-    def _generate_examples(
-        self,
-        local_extracted_archive,
-        archive_iterator,
-        metadata_filepath,
-        path_to_clips,
-    ):
-        """Yields examples."""
+    def _generate_examples(self, local_extracted_archive_paths, archives, meta_path):
         data_fields = list(self._info().features.keys())
         metadata = {}
-        metadata_found = False
-        for path, f in archive_iterator:
-            if path == metadata_filepath:
-                metadata_found = True
-                lines = (line.decode("utf-8") for line in f)
-                reader = csv.DictReader(lines, delimiter="\t", quoting=csv.QUOTE_NONE)
-                for row in reader:
-                    # set absolute path for mp3 audio file
-                    if not row["path"].endswith(".mp3"):
-                        row["path"] += ".mp3"
-                    row["path"] = os.path.join(path_to_clips, row["path"])
-                    # accent -> accents in CV 8.0
-                    if "accents" in row:
-                        row["accent"] = row["accents"]
-                        del row["accents"]
-                    # if data is incomplete, fill with empty values
-                    for field in data_fields:
-                        if field not in row:
-                            row[field] = ""
-                    metadata[row["path"]] = row
-            elif path.startswith(path_to_clips):
-                assert metadata_found, "Found audio clips before the metadata TSV file."
-                if not metadata:
-                    break
-                if path in metadata:
-                    result = dict(metadata[path])
-                    # set the audio feature and the path to the extracted file
-                    path = os.path.join(local_extracted_archive, path) if local_extracted_archive else path
-                    result["audio"] = {"path": path, "bytes": f.read()}
-                    # set path to None if the audio file doesn't exist locally (i.e. in streaming mode)
-                    result["path"] = path if local_extracted_archive else None
+        with open(meta_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
+            for row in tqdm(reader, desc="Reading metadata..."):
+                if not row["path"].endswith(".mp3"):
+                    row["path"] += ".mp3"
+                # accent -> accents in CV 8.0
+                if "accents" in row:
+                    row["accent"] = row["accents"]
+                    del row["accents"]
+                # if data is incomplete, fill with empty values
+                for field in data_fields:
+                    if field not in row:
+                        row[field] = ""
+                metadata[row["path"]] = row
 
+        for i, audio_archive in enumerate(archives):
+            for path, file in audio_archive:
+                _, filename = os.path.split(path)
+                if filename in metadata:
+                    result = dict(metadata[filename])
+                    # set the audio feature and the path to the extracted file
+                    path = os.path.join(local_extracted_archive_paths[i], path) if local_extracted_archive_paths else path
+                    result["audio"] = {"path": path, "bytes": file.read()}
+                    result["path"] = path
                     yield path, result
